@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alexa+ VPS Concierge — a simulated Alexa+ agentic skill</title>
+<meta name="description" content="A simulated Alexa+ experience: ask for a VPS by budget/RAM/vCPU and get a spoken, live-priced recommendation from the VPS Price Index.">
+<style>
+  :root{
+    --bg:#05070f; --panel:#0c1024; --accent:#00d4ff; --accent2:#7b5cff;
+    --text:#eaf2ff; --muted:#8a93b8;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh; background:radial-gradient(ellipse at top,#101838 0%,var(--bg) 60%);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; color:var(--text);
+    display:flex; flex-direction:column; align-items:center; padding:32px 16px 64px;
+  }
+  h1{font-size:20px; font-weight:600; margin:0 0 4px; letter-spacing:.2px}
+  .sub{color:var(--muted); font-size:13px; margin-bottom:28px; text-align:center; max-width:520px}
+  .orb-wrap{position:relative; width:150px; height:150px; margin-bottom:28px}
+  .orb{
+    width:150px; height:150px; border-radius:50%;
+    background:conic-gradient(from 180deg, var(--accent), var(--accent2), #ff5ca8, var(--accent));
+    filter:blur(0px); box-shadow:0 0 40px 6px rgba(0,212,255,.35);
+    animation:spin 6s linear infinite;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .orb.listening{animation:spin 1.4s linear infinite, pulse 1s ease-in-out infinite}
+  .orb.speaking{animation:spin 2.2s linear infinite, pulse .5s ease-in-out infinite}
+  .orb-core{width:60%; height:60%; border-radius:50%; background:var(--bg); }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+  .state{font-size:12px; color:var(--accent); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:20px; height:16px}
+  .panel{
+    width:100%; max-width:560px; background:var(--panel); border:1px solid #1c2445;
+    border-radius:16px; padding:18px; box-shadow:0 20px 60px rgba(0,0,0,.4);
+  }
+  .transcript{min-height:160px; max-height:320px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; margin-bottom:14px}
+  .bubble{padding:10px 14px; border-radius:12px; font-size:14px; line-height:1.45; max-width:88%}
+  .bubble.user{align-self:flex-end; background:#1d2a52; color:#dce6ff}
+  .bubble.agent{align-self:flex-start; background:linear-gradient(135deg,#132038,#0e1730); border:1px solid #223058; color:#eaf2ff}
+  .bubble.agent b{color:var(--accent)}
+  form{display:flex; gap:8px}
+  input[type=text]{
+    flex:1; padding:12px 14px; border-radius:10px; border:1px solid #263061; background:#0a0e1f;
+    color:var(--text); font-size:14px; outline:none;
+  }
+  input[type=text]:focus{border-color:var(--accent)}
+  button.send, button.mic{
+    border:none; border-radius:10px; padding:0 16px; cursor:pointer; font-size:14px; font-weight:600;
+    background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#04101f;
+  }
+  button.mic{padding:0 14px; background:#161d3d; color:var(--accent); border:1px solid #263061}
+  button.mic.rec{background:#ff3b5c; color:#fff; border-color:#ff3b5c}
+  .examples{display:flex; flex-wrap:wrap; gap:8px; margin-top:14px}
+  .chip{
+    font-size:12px; padding:7px 12px; border-radius:999px; background:#111a38; border:1px solid #263061;
+    color:var(--muted); cursor:pointer;
+  }
+  .chip:hover{color:var(--text); border-color:var(--accent)}
+  footer{margin-top:26px; font-size:11px; color:var(--muted); text-align:center; max-width:520px}
+  footer a{color:var(--accent); text-decoration:none}
+</style>
+</head>
+<body>
+  <h1>Alexa+ VPS Concierge</h1>
+  <p class="sub">A <b>simulated Alexa+ experience</b> built for the Build, Ship, Shape: Amazon Developer Hackathon (Alexa+ track).
+  Ask it for a server by budget, RAM or provider — it reasons over a live-priced VPS dataset and answers out loud, the way an
+  Alexa+ agentic skill would.</p>
+
+  <div class="orb-wrap">
+    <div class="orb" id="orb"><div class="orb-core"></div></div>
+  </div>
+  <div class="state" id="state">idle</div>
+
+  <div class="panel">
+    <div class="transcript" id="transcript"></div>
+    <form id="askForm">
+      <input type="text" id="askInput" placeholder="e.g. cheapest VPS with at least 4GB RAM" autocomplete="off">
+      <button type="button" class="mic" id="micBtn" title="Voice input (Web Speech API)">🎙</button>
+      <button type="submit" class="send">Ask</button>
+    </form>
+    <div class="examples" id="examples"></div>
+  </div>
+
+  <footer>
+    Data: live VPS Price Index (<a href="https://p32929.github.io/vps-price-index/" target="_blank">120+ real plans, Vultr / Akamai-Linode / Scaleway / AWS Lightsail</a>).
+    This page runs the whole "skill" client-side — no backend, no framework, no MCP server — the alternate submission
+    path the hackathon rules explicitly allow for Alexa+: <i>"a simulated Alexa+ experience... built using any AI or
+    agentic tool of their choice."</i>
+  </footer>
+
+<script>
+const DATA_URL = "https://p32929.github.io/vps-price-index/plans.json";
+const orb = document.getElementById('orb');
+const stateEl = document.getElementById('state');
+const transcript = document.getElementById('transcript');
+const form = document.getElementById('askForm');
+const input = document.getElementById('askInput');
+const micBtn = document.getElementById('micBtn');
+const examplesEl = document.getElementById('examples');
+
+let plansCache = null;
+
+function setState(s){
+  stateEl.textContent = s;
+  orb.classList.remove('listening','speaking');
+  if(s === 'listening') orb.classList.add('listening');
+  if(s === 'speaking') orb.classList.add('speaking');
+}
+
+function addBubble(who, html){
+  const b = document.createElement('div');
+  b.className = 'bubble ' + who;
+  b.innerHTML = html;
+  transcript.appendChild(b);
+  transcript.scrollTop = transcript.scrollHeight;
+}
+
+function speak(text){
+  return new Promise(resolve => {
+    setState('speaking');
+    if(!('speechSynthesis' in window)){ setState('idle'); resolve(); return; }
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.02;
+    u.onend = () => { setState('idle'); resolve(); };
+    u.onerror = () => { setState('idle'); resolve(); };
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  });
+}
+
+async function getPlans(){
+  if(plansCache) return plansCache;
+  const res = await fetch(DATA_URL, {cache:'no-store'});
+  const data = await res.json();
+  plansCache = data.plans;
+  return plansCache;
+}
+
+// --- tiny agentic NLU: pull constraints out of a free-text request ---
+function parseIntent(text){
+  const t = text.toLowerCase();
+  const intent = { minRam: null, minVcpu: null, maxPrice: null, provider: null, sortBy: 'usd' };
+  let m;
+  if(m = t.match(/(\d+(\.\d+)?)\s*gb\b/)) intent.minRam = parseFloat(m[1]);
+  if(m = t.match(/(\d+)\s*(vcpu|core|cpu)/)) intent.minVcpu = parseInt(m[1]);
+  if(m = t.match(/under\s*\$?(\d+(\.\d+)?)/) || t.match(/less than\s*\$?(\d+(\.\d+)?)/) || t.match(/budget of\s*\$?(\d+(\.\d+)?)/)) intent.maxPrice = parseFloat(m[1]);
+  ['vultr','akamai','linode','scaleway','lightsail','aws'].forEach(p => { if(t.includes(p)) intent.provider = p; });
+  if(t.includes('most ram') || t.includes('best value')) intent.sortBy = 'usd_per_gb_ram';
+  return intent;
+}
+
+function answerQuery(text, plans){
+  const intent = parseIntent(text);
+  let pool = plans.filter(p => p.usd > 0);
+  if(intent.minRam) pool = pool.filter(p => p.ram_gb >= intent.minRam);
+  if(intent.minVcpu) pool = pool.filter(p => p.vcpu >= intent.minVcpu);
+  if(intent.maxPrice) pool = pool.filter(p => p.usd <= intent.maxPrice);
+  if(intent.provider) pool = pool.filter(p => p.provider.toLowerCase().includes(intent.provider));
+
+  if(pool.length === 0){
+    const spoken = "I couldn't find a plan matching that. Try loosening the RAM or budget a little.";
+    return { html: spoken, spoken };
+  }
+  pool.sort((a,b) => a[intent.sortBy] - b[intent.sortBy]);
+  const best = pool[0];
+  const runnerUp = pool[1];
+  const spoken = `The best match is ${best.provider} ${best.plan}: ${best.vcpu} vCPU, ${best.ram_gb} gig RAM, ` +
+                 `about $${best.usd.toFixed(2)} a month.` +
+                 (runnerUp ? ` Runner up is ${runnerUp.provider} ${runnerUp.plan} at $${runnerUp.usd.toFixed(2)} a month.` : '');
+  const html = `Best match: <b>${best.provider} ${best.plan}</b> — ${best.vcpu} vCPU · ${best.ram_gb} GB RAM · ` +
+               `<b>$${best.usd.toFixed(2)}/mo</b><br>` +
+               (runnerUp ? `Runner-up: ${runnerUp.provider} ${runnerUp.plan} — $${runnerUp.usd.toFixed(2)}/mo<br>` : '') +
+               `<span style="color:var(--muted);font-size:12px">matched ${pool.length} plan(s) from a live dataset of ${plans.length}</span>`;
+  return { html, spoken };
+}
+
+async function handleAsk(text){
+  if(!text.trim()) return;
+  addBubble('user', text);
+  input.value = '';
+  setState('listening');
+  await new Promise(r => setTimeout(r, 350)); // simulated wake/parse delay
+  const plans = await getPlans();
+  const { html, spoken } = answerQuery(text, plans);
+  addBubble('agent', html);
+  await speak(spoken);
+}
+
+form.addEventListener('submit', e => { e.preventDefault(); handleAsk(input.value); });
+
+const EXAMPLES = [
+  'cheapest VPS with at least 4GB RAM',
+  'best value plan under $10',
+  '2 vCPU on Vultr',
+  'cheapest plan overall'
+];
+EXAMPLES.forEach(q => {
+  const c = document.createElement('div');
+  c.className = 'chip'; c.textContent = q;
+  c.onclick = () => handleAsk(q);
+  examplesEl.appendChild(c);
+});
+
+// Voice input via Web Speech API where available (Chrome/Edge)
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+if(SpeechRec){
+  const rec = new SpeechRec();
+  rec.lang = 'en-US'; rec.interimResults = false;
+  micBtn.addEventListener('click', () => {
+    micBtn.classList.add('rec'); setState('listening');
+    rec.start();
+  });
+  rec.onresult = e => {
+    micBtn.classList.remove('rec');
+    handleAsk(e.results[0][0].transcript);
+  };
+  rec.onerror = () => { micBtn.classList.remove('rec'); setState('idle'); };
+  rec.onend = () => micBtn.classList.remove('rec');
+} else {
+  micBtn.title = 'Voice input not supported in this browser — type your request instead';
+}
+
+setState('idle');
+addBubble('agent', "Hi, I'm your Alexa+ VPS Concierge. Ask me for a server by RAM, vCPU, budget or provider.");
+</script>
+</body>
+</html>
