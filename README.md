@@ -1,27 +1,33 @@
 # Alexa+ VPS Concierge
 
-A **simulated Alexa+ experience** built for the [Build, Ship, Shape: Amazon Developer Hackathon](https://amazonappdev2026.devpost.com/) (Alexa+ track).
-
-Ask it for a server the way you'd ask a voice assistant — *"cheapest VPS with at least 4GB RAM"*, *"2 vCPU on Vultr"*, *"best value plan under $10"* — and it reasons over a **live-priced dataset of 120+ real VPS plans** (Vultr, Akamai/Linode, Scaleway, AWS Lightsail — via [VPS Price Index](https://p32929.github.io/vps-price-index/)) and answers back, out loud, exactly like an Alexa+ agentic skill would.
+Ask for a server the way you would ask a voice assistant, and get a spoken answer back. Comparing VPS plans across providers usually means opening several pricing pages and a spreadsheet. Here you just say *"cheapest VPS with at least 4GB RAM"* or *"best value plan under $10"*, and it picks the best match from 120+ real plans with live prices.
 
 **Live demo:** https://p32929.github.io/alexa-plus-vps-finder/
 
-## Why "simulated" and not an MCP server
+It was built for the [Build, Ship, Shape: Amazon Developer Hackathon](https://amazonappdev2026.devpost.com/) (Alexa+ track) as a simulated Alexa+ experience. It is one HTML file with no dependencies and no server, so anyone can run it by opening a page.
 
-The hackathon's Alexa+ track accepts either a self-hosted MCP server, **or** — the path this project takes — *"a simulated Alexa+ experience... built using any AI or agentic tool of their choice, no specific framework, SDK, or MCP-shaped surface required."* This is that: a small, honest, client-side agentic loop (intent parsing → live data lookup → spoken response) with zero backend, so anyone can run it by opening a static page.
+## Features
+
+1. **Ask in plain words.** RAM, vCPU, budget and provider are picked out of your sentence, for example *"2 vCPU on Vultr"*.
+2. **Real, live prices.** It reads the [VPS Price Index](https://p32929.github.io/vps-price-index/), which is rebuilt every day from the providers' own pricing (Vultr, Akamai/Linode, Scaleway and AWS Lightsail).
+3. **It talks back.** The answer appears in the chat and is spoken out loud, like Alexa+ would.
+4. **Voice input** in Chrome and Edge, or just type.
+5. **Nothing to install.** No build step, no packages, no backend.
 
 ## How it works
 
-1. You type or speak a request.
-2. A tiny NLU layer (`parseIntent` in `index.html`) pulls out RAM / vCPU / budget / provider constraints — the "agent reasoning" step.
-3. It fetches the live plans dataset and filters/sorts to the best match.
-4. It answers in the chat transcript **and speaks the answer out loud** via the Web Speech API — the same modality Alexa+ uses.
+1. You type or say what you need.
+2. A small parser (`parseIntent` in `index.html`) pulls out the RAM, vCPU, budget and provider you asked for.
+3. It fetches the live plan list and picks the best match.
+4. It shows the answer and reads it out loud with the browser's Web Speech API.
 
-No build step, no dependencies, no server. Open `index.html` in any modern browser (Chrome/Edge get voice input too, via `SpeechRecognition`).
+## Why "simulated" and not an MCP server
+
+The hackathon's Alexa+ track accepts either a self-hosted MCP server, or *"a simulated Alexa+ experience... built using any AI or agentic tool of their choice, no specific framework, SDK, or MCP-shaped surface required."* This project takes the second path: a small agent loop that runs fully in your browser.
 
 ## Run it locally
 
-```
+```bash
 git clone https://github.com/p32929/alexa-plus-vps-finder.git
 cd alexa-plus-vps-finder
 python3 -m http.server 8000
@@ -30,8 +36,20 @@ python3 -m http.server 8000
 
 ## Data source
 
-Live JSON: `https://p32929.github.io/vps-price-index/plans.json` — rebuilt daily from providers' own public pricing APIs. This project only reads it (CORS-open, no key needed).
+The plans come from `https://p32929.github.io/vps-price-index/plans.json`. It is open to read from any page and needs no key.
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+MIT. See [LICENSE](./LICENSE).
+
+## Contributing
+
+Contributions are very welcome, thank you! Before you start on a pull request, please open an issue and tell me what you would like to add or change. That way we can agree on it first, and your time is not wasted on something that might not fit. Thanks for helping make Alexa+ VPS Concierge better.
+
+## Share
+
+<a href="https://p32929.github.io/share/?repo=alexa-plus-vps-finder"><img src="https://p32929.github.io/readme/share.svg" alt="Share this with your friends in just a click" width="420"></a>
+
+## Support
+
+<a href="https://p32929.github.io/support/"><img src="https://p32929.github.io/readme/support.svg" alt="If you like my works and want to support me, feel free to support" width="420"></a>
